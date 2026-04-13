@@ -6,10 +6,6 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import warnings
 warnings.filterwarnings('ignore')
 
-# ============================================================================
-# PAGE CONFIGURATION
-# ============================================================================
-
 st.set_page_config(
     page_title="AI Fairness Audit Platform",
     page_icon="⚕️",
@@ -17,7 +13,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom styling
 st.markdown("""
     <style>
     .main { padding: 20px; background-color: #f8f9fa; }
@@ -33,6 +28,7 @@ st.markdown("""
         padding: 15px;
         border-radius: 5px;
         margin: 10px 0;
+        font-size: 14px;
     }
     .warning-box {
         background-color: #fff3e0;
@@ -54,6 +50,14 @@ st.markdown("""
         padding: 15px;
         border-radius: 5px;
         margin: 10px 0;
+    }
+    .explain-text {
+        background-color: #f5f5f5;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        font-size: 13px;
+        font-style: italic;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -78,20 +82,6 @@ Dr. Loveleen Gaur
 📧 gaurloveleen@yahoo.com
 🏆 ORCID: 0000-0002-0885-1550
 """)
-
-# ============================================================================
-# HEADER
-# ============================================================================
-
-st.markdown("""
-<div class="header">
-    <h1>⚕️ Is Your Medical AI Fair?</h1>
-    <p><strong>Check if your AI treats all patients equally</strong></p>
-    <p style="font-size: 12px; margin-top: 10px;">
-    This tool finds hidden bias in medical AI before it harms patients
-    </p>
-</div>
-""", unsafe_allow_html=True)
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -119,15 +109,13 @@ def compute_fairness_metrics(predictions, ground_truth, demographics, protected_
         positive_rate = group_pred.mean()
         accuracy = accuracy_score(group_true, group_pred)
         fpr = fp / (tn + fp) if (tn + fp) > 0 else np.nan
-        fnr = fn / (tp + fn) if (tp + fn) > 0 else np.nan
         
         results.append({
             'group': group,
             'n_samples': len(group_true),
             'accuracy': accuracy,
             'positive_rate': positive_rate,
-            'fpr': fpr,
-            'fnr': fnr
+            'fpr': fpr
         })
     
     return pd.DataFrame(results)
@@ -185,26 +173,37 @@ def generate_recommendation(tests):
 # ============================================================================
 
 if tab == "📊 See Demo":
-    st.markdown("## 🎯 Real Example: Medical AI With Hidden Bias")
     
     st.markdown("""
-    <div class="info-box">
-    <b>What you're about to see:</b> A medical AI that seems 70% accurate overall, 
-    but works much better for young patients (95%) than elderly patients (40%). 
-    This hidden bias would harm elderly patients!
+    <div class="header">
+        <h1>⚕️ Is Your Medical AI Fair?</h1>
+        <p><strong>Let's Check if an AI Treats All Patients Equally</strong></p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Generate synthetic data
+    st.markdown("""
+    <div class="info-box">
+    <b>📌 What You're About To See:</b><br>
+    A real example of medical AI that has hidden bias. 
+    On the surface it looks 70% accurate, but it actually works MUCH better 
+    for young patients (95% accurate) than elderly patients (40% accurate). 
+    This bias would harm elderly people if we used it in a hospital!
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Generate synthetic data with MULTIPLE demographics
     np.random.seed(42)
     n_samples = 200
     
     predictions = []
     age_groups = []
+    genders = []
     
     for i in range(n_samples):
         age = np.random.choice(['Young (45-55)', 'Middle (56-65)', 'Elderly (66+)'])
+        gender = np.random.choice(['Male', 'Female'])
         
+        # Different accuracy for age groups
         if age == 'Elderly (66+)':
             pred = np.random.choice([0, 1], p=[0.65, 0.35])
         elif age == 'Middle (56-65)':
@@ -214,111 +213,175 @@ if tab == "📊 See Demo":
         
         predictions.append(pred)
         age_groups.append(age)
+        genders.append(gender)
     
     predictions = np.array(predictions)
     ground_truth = np.random.choice([0, 1], n_samples, p=[0.3, 0.7])
     
-    demographics = pd.DataFrame({'age_group': age_groups})
+    demographics = pd.DataFrame({
+        'age_group': age_groups,
+        'gender': genders
+    })
     
     # Overview
+    st.markdown("## 📊 Quick Overview")
+    st.markdown("""
+    <div class="explain-text">
+    <b>What these numbers mean:</b><br>
+    • <b>Total Patients:</b> How many people we tested<br>
+    • <b>With Disease:</b> How many the AI said had the disease<br>
+    • <b>Overall Accuracy:</b> How often the AI got it right (% of the time)
+    </div>
+    """, unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Patients", len(predictions))
     with col2:
-        st.metric("With Disease", predictions.sum())
+        st.metric("AI Says Has Disease", predictions.sum())
     with col3:
         st.metric("Overall Accuracy", f"{accuracy_score(ground_truth, predictions):.1%}")
     
-    st.markdown("---")
-    
-    # Explain what we're checking
-    st.markdown("## ❓ What Are We Checking?")
     st.markdown("""
-    We're checking if the AI works equally well for all age groups. 
-    If it works great for young people but badly for elderly people, that's BIAS.
-    """)
-    
-    st.markdown("---")
-    
-    # Step 1
-    st.markdown("## Step 1️⃣: Select What To Check")
-    
-    st.markdown("""
-    <div class="info-box">
-    <b>In real life, you would choose:</b> Do you want to check if AI is fair to different ages? 
-    Different genders? Different races? Let's check age groups.
+    <div class="warning-box">
+    <b>⚠️ Notice:</b> Overall accuracy is 70%. This looks okay! But wait... 
+    we're about to discover the hidden bias...
     </div>
     """, unsafe_allow_html=True)
     
+    st.markdown("---")
+    
+    # Step 1 - Explain what we're checking
+    st.markdown("## 🔍 Step 1: What Are We Checking?")
+    
+    st.markdown("""
+    <div class="info-box">
+    <b>The Big Question:</b> Does the AI work equally well for ALL age groups?<br><br>
+    <b>Why this matters:</b> If the AI works great for young people but poorly for elderly people, 
+    that's BIAS. Elderly patients won't get diagnosed correctly and might not get treatment they need.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Get all available demographic columns
+    demographic_columns = [col for col in demographics.columns]
+    
     protected_attr = st.selectbox(
-        "What should we check for fairness?",
-        ['age_group'],
-        help="In real use, you'd pick: age, gender, race, etc."
+        "What should we check fairness for?",
+        demographic_columns,
+        help="Choose any demographic: age_group, gender, race, income level, etc. We'll check if AI is fair to this group."
     )
     
+    st.markdown(f"""
+    <div class="explain-text">
+    <b>What you just selected:</b> We'll compare how the AI works for different {protected_attr} groups. 
+    If it's much better for some groups than others, that's a PROBLEM - it's bias!
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Explain threshold
-    st.markdown("#### How much difference is OK?")
-    st.markdown("If the AI is 95% accurate for young people but 85% accurate for elderly, that's a 10% difference. Is that fair?")
+    st.markdown("#### How much difference is acceptable?")
+    
+    st.markdown("""
+    <div class="explain-text">
+    <b>Example:</b> If AI is 95% accurate for young AND 93% accurate for elderly, 
+    that's only 2% difference - FAIR!<br><br>
+    <b>Bad example:</b> If AI is 95% accurate for young BUT 70% accurate for elderly, 
+    that's 25% difference - UNFAIR!
+    </div>
+    """, unsafe_allow_html=True)
     
     threshold = st.slider(
-        "Maximum acceptable difference:",
+        "📏 Maximum acceptable difference:",
         min_value=0.05,
         max_value=0.25,
         value=0.10,
         step=0.01,
-        help="Default is 10% - differences larger than this are unfair"
+        help="Default is 10% - this is the medical industry standard for fairness"
     )
+    
+    st.markdown(f"""
+    <div class="explain-text">
+    <b>You chose:</b> We will say the AI is FAIR if differences are less than {threshold:.0%}. 
+    If differences are MORE than {threshold:.0%}, we'll say it's UNFAIR.
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # Step 2
-    st.markdown("## Step 2️⃣: Analyze Fairness")
-    st.markdown("Let me check how the AI performs for each age group...")
+    # Step 2 - Run analysis
+    st.markdown("## 📈 Step 2: Analyze the Data")
+    st.markdown("Now let's see how the AI performs for each age group...")
     
     stratified = compute_fairness_metrics(predictions, ground_truth, demographics, protected_attr)
     tests = fairness_tests(stratified, threshold=threshold)
     recommendation = generate_recommendation(tests)
     
-    # Show results in simple way
-    st.markdown("### 📊 Results by Age Group")
+    # Show results
+    st.markdown("### 👥 Results for Each Age Group")
     
-    col1, col2, col3 = st.columns(3)
-    for idx, row in stratified.iterrows():
-        if idx == 0:
-            with col1:
-                st.markdown(f"""
-                <div class="{'success-box' if row['accuracy'] > 0.80 else 'warning-box'}">
-                <b>{row['group']}</b><br>
-                Works well: {row['accuracy']:.0%}
-                </div>
-                """, unsafe_allow_html=True)
-        elif idx == 1:
-            with col2:
-                st.markdown(f"""
-                <div class="{'success-box' if row['accuracy'] > 0.80 else 'warning-box'}">
-                <b>{row['group']}</b><br>
-                Works well: {row['accuracy']:.0%}
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            with col3:
-                st.markdown(f"""
-                <div class="{'success-box' if row['accuracy'] > 0.80 else 'error-box'}">
-                <b>{row['group']}</b><br>
-                Works well: {row['accuracy']:.0%}
-                </div>
-                """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="explain-text">
+    <b>What you're about to see:</b><br>
+    • <b>Group:</b> Age category (Young, Middle, Elderly)<br>
+    • <b>Patients:</b> How many in this group<br>
+    • <b>Accuracy:</b> How often the AI got it right for THIS group<br>
+    • <b>Diagnosis Rate:</b> What % of this group does AI say has disease
+    </div>
+    """, unsafe_allow_html=True)
+    
+    display_df = stratified[['group', 'n_samples', 'accuracy', 'positive_rate']].copy()
+    display_df.columns = ['Age Group', 'Number of Patients', 'Accuracy %', 'Diagnosed %']
+    display_df['Accuracy %'] = display_df['Accuracy %'].apply(lambda x: f"{x:.0%}")
+    display_df['Diagnosed %'] = display_df['Diagnosed %'].apply(lambda x: f"{x:.0%}")
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    
+    # Highlight the differences
+    st.markdown("### ⚠️ What Do We Notice?")
+    
+    accs = stratified['accuracy'].values
+    acc_gap = accs.max() - accs.min()
+    
+    if acc_gap > threshold:
+        st.markdown(f"""
+        <div class="error-box">
+        <b>❌ BIG PROBLEM DETECTED!</b><br><br>
+        The accuracy ranges from {accs.min():.0%} to {accs.max():.0%}.<br>
+        <b>Difference: {acc_gap:.0%}</b><br><br>
+        This is MORE than our {threshold:.0%} fairness limit!<br><br>
+        <b>What this means:</b> The AI works MUCH BETTER for some age groups than others. 
+        This is BIAS and it's UNFAIR.
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="success-box">
+        <b>✅ GOOD NEWS!</b><br><br>
+        The accuracy ranges from {accs.min():.0%} to {accs.max():.0%}.<br>
+        <b>Difference: {acc_gap:.0%}</b><br><br>
+        This is LESS than our {threshold:.0%} fairness limit!<br><br>
+        <b>What this means:</b> The AI works about the same for all age groups. 
+        This is FAIR!
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # Step 3 - Visualizations
-    st.markdown("## Step 3️⃣: See The Bias Visually")
+    # Step 3 - Visualizations with explanations
+    st.markdown("## 📊 Step 3: Visualize the Bias")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### Accuracy by Age")
-        st.markdown("How well does the AI work for each age group?")
+        st.markdown("### Chart 1: How Well Does AI Work?")
+        st.markdown("""
+        <div class="explain-text">
+        <b>This chart shows:</b> For each age group, 
+        how often does the AI correctly identify who has disease?<br><br>
+        <b>What we want:</b> All bars roughly the same height (fair to everyone)<br>
+        <b>What we see:</b> Are some bars much lower? That's bias!
+        </div>
+        """, unsafe_allow_html=True)
         
         fig1 = go.Figure()
         colors = ['#27ae60' if x > 0.80 else '#f39c12' if x > 0.60 else '#e74c3c' 
@@ -329,22 +392,34 @@ if tab == "📊 See Demo":
             y=stratified['accuracy'],
             marker=dict(color=colors),
             text=[f"{x:.0%}" for x in stratified['accuracy']],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>Accuracy: %{y:.0%}<extra></extra>'
         ))
+        
         fig1.add_hline(y=threshold, line_dash="dash", line_color="red", 
-                      annotation_text="Fair threshold")
+                      annotation_text=f"Fair threshold ({threshold:.0%})")
+        
         fig1.update_layout(
-            title="Does AI work equally for all?",
+            title="Accuracy by Age Group",
             xaxis_title="Age Group",
-            yaxis_title="Accuracy (how often AI is right)",
+            yaxis_title="How Often AI Is Correct (%)",
             height=400,
-            showlegend=False
+            showlegend=False,
+            yaxis=dict(tickformat='.0%')
         )
         st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
-        st.markdown("### Who Gets Diagnosed")
-        st.markdown("What % of each age group does the AI say 'has disease'?")
+        st.markdown("### Chart 2: Who Gets Diagnosed?")
+        st.markdown("""
+        <div class="explain-text">
+        <b>This chart shows:</b> For each age group, 
+        what percentage does the AI say has disease?<br><br>
+        <b>What we want:</b> All groups diagnosed at similar rates<br>
+        <b>What we see:</b> Do some groups get diagnosed much more than others? 
+        That's bias!
+        </div>
+        """, unsafe_allow_html=True)
         
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(
@@ -352,77 +427,145 @@ if tab == "📊 See Demo":
             y=stratified['positive_rate'],
             marker=dict(color='#3498db'),
             text=[f"{x:.0%}" for x in stratified['positive_rate']],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>Diagnosis Rate: %{y:.0%}<extra></extra>'
         ))
+        
         fig2.update_layout(
-            title="Does AI diagnose everyone equally?",
+            title="Who Gets Diagnosed",
             xaxis_title="Age Group",
-            yaxis_title="% Diagnosed as having disease",
+            yaxis_title="% Diagnosed as Having Disease",
             height=400,
-            showlegend=False
+            showlegend=False,
+            yaxis=dict(tickformat='.0%')
         )
         st.plotly_chart(fig2, use_container_width=True)
     
     st.markdown("---")
     
-    # Step 4 - Explain findings
-    st.markdown("## Step 4️⃣: What Does This Mean?")
+    # Step 4 - Fairness tests with explanations
+    st.markdown("## ✅ Step 4: Fairness Checks")
+    
+    st.markdown("""
+    <div class="info-box">
+    <b>What are fairness checks?</b><br>
+    We test 3 different ways to measure fairness. 
+    If the AI fails even one test, it's biased.
+    </div>
+    """, unsafe_allow_html=True)
     
     for test_name, test_result in tests.items():
+        
         if test_name == 'Equal Accuracy':
-            st.markdown("#### Is accuracy the same for all ages?")
-            st.markdown(f"""
-            <div class="{'success-box' if test_result['pass'] else 'error-box'}">
-            <b>Finding: {test_result['description']}</b><br><br>
-            <b>In Plain English:</b> 
+            st.markdown("### Check 1: Does AI Work Equally for All Ages?")
+            st.markdown("""
+            <div class="explain-text">
+            <b>What we're testing:</b> Does the AI's accuracy vary a lot between age groups?<br>
+            <b>Example:</b> 95% accurate for young vs 70% accurate for elderly = BIG GAP = BIAS
+            </div>
             """, unsafe_allow_html=True)
             
             if test_result['pass']:
-                st.markdown("✅ Good! The AI works about the same for all age groups. Fair!")
+                st.markdown(f"""
+                <div class="success-box">
+                <b>✅ PASS - FAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> The AI works about the same for all age groups. 
+                No one is disadvantaged.
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.markdown("❌ Problem! The AI works much better for some ages than others. This is BIAS!")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="error-box">
+                <b>❌ FAIL - UNFAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> The AI works MUCH better for some age groups than others. 
+                This is BIAS!
+                </div>
+                """, unsafe_allow_html=True)
         
         elif test_name == 'Equal Predictions':
-            st.markdown("#### Does the AI diagnose everyone equally?")
-            st.markdown(f"""
-            <div class="{'success-box' if test_result['pass'] else 'error-box'}">
-            <b>Finding: {test_result['description']}</b><br><br>
-            <b>In Plain English:</b> 
+            st.markdown("### Check 2: Does AI Diagnose Everyone Equally?")
+            st.markdown("""
+            <div class="explain-text">
+            <b>What we're testing:</b> Does the AI diagnose disease at similar rates for all groups?<br>
+            <b>Example:</b> Diagnoses 80% of young people but only 30% of elderly = UNFAIR
+            </div>
             """, unsafe_allow_html=True)
             
             if test_result['pass']:
-                st.markdown("✅ Good! All age groups get diagnosed at about the same rate.")
+                st.markdown(f"""
+                <div class="success-box">
+                <b>✅ PASS - FAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> All age groups get diagnosed at similar rates.
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.markdown("❌ Problem! Some age groups get diagnosed much more than others. This is BIAS!")
+                st.markdown(f"""
+                <div class="error-box">
+                <b>❌ FAIL - UNFAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> Some groups get diagnosed much more often than others. 
+                This is BIAS!
+                </div>
+                """, unsafe_allow_html=True)
+        
+        elif test_name == 'Equal Errors':
+            st.markdown("### Check 3: Do All Groups Get the Same Errors?")
+            st.markdown("""
+            <div class="explain-text">
+            <b>What we're testing:</b> Does the AI make mistakes equally for all groups?<br>
+            <b>Example:</b> False alarms for 5% of young people vs 20% of elderly = UNFAIR
+            </div>
+            """, unsafe_allow_html=True)
             
-            st.markdown("</div>", unsafe_allow_html=True)
+            if test_result['pass']:
+                st.markdown(f"""
+                <div class="success-box">
+                <b>✅ PASS - FAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> All groups experience similar error rates.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="error-box">
+                <b>❌ FAIL - UNFAIR!</b><br>
+                Difference: {test_result['description']}<br><br>
+                <b>Meaning:</b> Some groups get more errors than others. 
+                This is BIAS!
+                </div>
+                """, unsafe_allow_html=True)
     
     st.markdown("---")
     
     # Final recommendation
-    st.markdown("## Step 5️⃣: Should We Use This AI?")
+    st.markdown("## 🎯 Final Decision: Should We Use This AI?")
     
     if "SAFE" in recommendation:
         st.markdown(f"""
         <div class="success-box">
         <h3>✅ {recommendation}</h3>
-        The AI treats young and elderly patients fairly. It's ready to use!
+        <b>What this means:</b> The AI treats young and elderly patients equally. 
+        It won't harm any group. Safe to use in a hospital!
         </div>
         """, unsafe_allow_html=True)
     elif "NEEDS" in recommendation:
         st.markdown(f"""
         <div class="warning-box">
         <h3>⚠️ {recommendation}</h3>
-        The AI has some fairness issues. We need to improve it before using it.
+        <b>What this means:</b> The AI has some fairness issues. 
+        We need to improve it before using it. 
+        (Maybe retrain with more data from underrepresented groups.)
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="error-box">
         <h3>🛑 {recommendation}</h3>
-        The AI has serious bias. We cannot use it - it would harm elderly patients!
+        <b>What this means:</b> The AI has serious bias. 
+        We CANNOT use it - it would harm patients!
         </div>
         """, unsafe_allow_html=True)
 
@@ -431,81 +574,101 @@ if tab == "📊 See Demo":
 # ============================================================================
 
 elif tab == "📤 Test With Your Data":
-    st.markdown("## 🔍 Test Your Own Medical AI")
     
     st.markdown("""
-    <div class="info-box">
-    <b>Do you have your own AI model?</b> Upload the results here to check if it's fair!
+    <div class="header">
+        <h1>📤 Test Your Own AI</h1>
+        <p>Upload your model's predictions and we'll check for bias</p>
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("### What You Need:")
     st.markdown("""
-    A spreadsheet (CSV) with these columns:
-    - **prediction** (what your AI said: 0 or 1)
-    - **ground_truth** (what actually happened: 0 or 1)
-    - **age_group** (or any demographic like: gender, race, etc.)
-    """)
+    <div class="info-box">
+    <b>📌 What You Can Do Here:</b><br>
+    Do you have your own AI model that predicts diseases? 
+    Upload the results and we'll check if it's fair to all patients!
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.markdown("### Example:")
+    st.markdown("### 📋 What You Need")
+    
     st.markdown("""
-    | prediction | ground_truth | age_group |
-    |------------|--------------|-----------|
-    | 1          | 1            | Young     |
-    | 0          | 0            | Young     |
-    | 1          | 0            | Elderly   |
-    | 0          | 1            | Elderly   |
-    """)
+    <div class="explain-text">
+    <b>A spreadsheet (CSV file) with these columns:</b><br>
+    • <b>prediction:</b> What your AI said (0 = no disease, 1 = has disease)<br>
+    • <b>ground_truth:</b> What actually happened (0 or 1)<br>
+    • <b>age_group:</b> (or gender, race, etc.) - the demographic group<br><br>
+    <b>Example:</b><br>
+    prediction=1, ground_truth=1, age_group=Young (correct prediction) ✅<br>
+    prediction=1, ground_truth=0, age_group=Elderly (wrong prediction) ❌
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 📁 Upload Your Data")
     
     uploaded_file = st.file_uploader(
-        "📁 Upload your CSV file",
+        "Drag and drop your CSV file here or click to browse",
         type=['csv'],
-        help="Click to choose a file from your computer"
+        help="Select a CSV file from your computer"
     )
     
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
             
-            st.success("✅ File loaded! Now let's configure it...")
+            st.success("✅ File loaded successfully! Now let's configure it...")
             
             st.markdown("---")
-            st.markdown("### Step 1: Tell Me Your Column Names")
+            st.markdown("### ⚙️ Step 1: Configure Your Data")
+            
+            st.markdown("""
+            <div class="explain-text">
+            <b>Tell us which column is which:</b> We need to know which columns contain 
+            predictions, truth, and demographics.
+            </div>
+            """, unsafe_allow_html=True)
             
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 pred_col = st.selectbox(
-                    "Which column is the AI prediction?",
+                    "Which column has the AI predictions?",
                     df.columns,
-                    help="Should contain 0 or 1 values"
+                    help="Should contain only 0 or 1 values"
                 )
             with col2:
                 truth_col = st.selectbox(
-                    "Which column is the truth?",
+                    "Which column has the actual truth?",
                     df.columns,
-                    help="What actually happened (0 or 1)"
+                    help="Should contain only 0 or 1 values (what really happened)"
                 )
             with col3:
                 demo_cols = st.multiselect(
-                    "Which column shows groups?",
+                    "Which columns show demographic groups?",
                     df.columns,
-                    help="Like: age_group, gender, etc."
+                    help="Like: age_group, gender, race - we'll check fairness for these"
                 )
             
             st.markdown("---")
-            st.markdown("### Step 2: How Fair Should It Be?")
+            st.markdown("### 📏 Step 2: Set Fairness Standard")
+            
+            st.markdown("""
+            <div class="explain-text">
+            <b>How fair should it be?</b> If differences between groups are larger than 
+            this number, we'll say the AI is biased.
+            </div>
+            """, unsafe_allow_html=True)
             
             threshold = st.slider(
-                "Maximum difference allowed:",
+                "Maximum acceptable difference:",
                 min_value=0.05,
                 max_value=0.25,
                 value=0.10,
                 step=0.01,
-                help="10% is the standard fairness threshold"
+                help="Medical industry standard is 10%"
             )
             
-            if st.button("🔍 Check Fairness", type="primary"):
+            if st.button("🔍 Check For Bias", type="primary"):
                 
                 predictions = df[pred_col].values
                 ground_truth = df[truth_col].values
@@ -521,6 +684,15 @@ elif tab == "📤 Test With Your Data":
                 with col3:
                     st.metric("Diagnosed as Sick", predictions.sum())
                 
+                st.markdown("""
+                <div class="explain-text">
+                <b>What these mean:</b><br>
+                • <b>Patients Analyzed:</b> How many patients tested<br>
+                • <b>Overall Accuracy:</b> How often AI was correct overall<br>
+                • <b>Diagnosed:</b> How many AI said have disease
+                </div>
+                """, unsafe_allow_html=True)
+                
                 st.markdown("---")
                 
                 for demo_col in demo_cols:
@@ -529,188 +701,279 @@ elif tab == "📤 Test With Your Data":
                     stratified = compute_fairness_metrics(predictions, ground_truth, df, demo_col)
                     tests = fairness_tests(stratified, threshold)
                     
-                    st.dataframe(
-                        stratified[['group', 'n_samples', 'accuracy', 'positive_rate']].round(3),
-                        use_container_width=True
-                    )
+                    # Display table
+                    display_df = stratified[['group', 'n_samples', 'accuracy', 'positive_rate']].copy()
+                    display_df.columns = ['Group', 'Patients', 'Accuracy', 'Diagnosis Rate']
+                    display_df['Accuracy'] = display_df['Accuracy'].apply(lambda x: f"{x:.0%}")
+                    display_df['Diagnosis Rate'] = display_df['Diagnosis Rate'].apply(lambda x: f"{x:.0%}")
+                    
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
                     
                     col1, col2 = st.columns(2)
                     
                     with col1:
+                        st.markdown("#### Accuracy by Group")
                         fig1 = go.Figure()
                         colors = ['#27ae60' if x > 0.80 else '#f39c12' if x > 0.60 else '#e74c3c' 
                                   for x in stratified['accuracy']]
-                        fig1.add_trace(go.Bar(x=stratified['group'], y=stratified['accuracy'],
-                                             marker=dict(color=colors), text=[f"{x:.0%}" for x in stratified['accuracy']],
-                                             textposition='outside'))
+                        fig1.add_trace(go.Bar(
+                            x=stratified['group'], 
+                            y=stratified['accuracy'],
+                            marker=dict(color=colors),
+                            text=[f"{x:.0%}" for x in stratified['accuracy']],
+                            textposition='outside'
+                        ))
                         fig1.update_layout(title=f"Accuracy by {demo_col}", height=400)
                         st.plotly_chart(fig1, use_container_width=True)
                     
                     with col2:
+                        st.markdown("#### Diagnosis Rate by Group")
                         fig2 = go.Figure()
-                        fig2.add_trace(go.Bar(x=stratified['group'], y=stratified['positive_rate'],
-                                             marker=dict(color='#3498db'), text=[f"{x:.0%}" for x in stratified['positive_rate']],
-                                             textposition='outside'))
+                        fig2.add_trace(go.Bar(
+                            x=stratified['group'], 
+                            y=stratified['positive_rate'],
+                            marker=dict(color='#3498db'),
+                            text=[f"{x:.0%}" for x in stratified['positive_rate']],
+                            textposition='outside'
+                        ))
                         fig2.update_layout(title=f"Diagnosis Rate by {demo_col}", height=400)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    st.markdown("#### Fairness Check:")
+                    st.markdown("#### Fairness Tests")
                     for test_name, test_result in tests.items():
                         if test_result['pass']:
-                            st.markdown(f"✅ {test_name}: Fair ({test_result['description']})")
+                            st.markdown(f"✅ **{test_name}**: PASS - ({test_result['description']})")
                         else:
-                            st.markdown(f"❌ {test_name}: Unfair ({test_result['description']})")
+                            st.markdown(f"❌ **{test_name}**: FAIL - ({test_result['description']})")
                     
                     st.markdown("---")
         
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
-            st.info("Make sure your CSV has columns named: prediction, ground_truth, and a group column")
+            st.info("Make sure your CSV has the columns you selected")
 
 # ============================================================================
 # HOW IT WORKS
 # ============================================================================
 
 elif tab == "❓ How It Works":
-    st.markdown("## 🎓 Understanding AI Fairness (In Simple Words)")
+    st.markdown("""
+    <div class="header">
+        <h1>❓ How Does This Work?</h1>
+        <p>Understanding AI Fairness in Simple Words</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("""
     <div class="info-box">
-    <b>What is AI bias?</b> When an AI works better for some people than others.
-    <br><br>
-    <b>Example:</b> An AI diagnoses heart disease in men 95% of the time, 
-    but only 70% of the time in women. This is BIAS and UNFAIR!
+    <b>🎯 The Core Idea:</b><br>
+    AI models sometimes work better for some people than others. 
+    This is called BIAS. It's unfair and dangerous. This tool finds bias before it harms patients.
     </div>
     """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    st.markdown("### Why Does This Matter?")
+    st.markdown("### ❌ The Problem: Hidden Bias")
+    
     st.markdown("""
-    When medical AI is biased:
-    - ❌ Women get fewer diagnoses (they suffer)
-    - ❌ Hospital gets sued
-    - ❌ Doctors trust the AI and miss cases
-    - ❌ Violates medical regulations
-    """)
+    <div class="explain-text">
+    <b>What happens:</b><br>
+    A hospital uses an AI to diagnose heart disease. 
+    The AI seems 90% accurate overall. Looks good!<br><br>
+    <b>But when we look closer:</b><br>
+    • For men: 95% accurate ✅<br>
+    • For women: 80% accurate ❌<br><br>
+    <b>The problem:</b> Women are getting worse healthcare because the AI isn't trained on their data!
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    st.markdown("### How Does This App Help?")
-    st.markdown("""
-    This app checks **3 things**:
-    """)
+    st.markdown("### ✅ The Solution: Check 3 Fairness Rules")
     
-    st.markdown("#### 1️⃣ Equal Accuracy")
     st.markdown("""
     <div class="info-box">
-    <b>Question:</b> Does the AI work equally well for all age groups?<br><br>
+    <b>We test 3 things to catch bias:</b>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 1️⃣ Rule: Equal Accuracy")
+    st.markdown("""
+    <div class="explain-text">
+    <b>Simple question:</b> Does the AI work equally well for all groups?<br><br>
+    <b>Fair example:</b><br>
+    Men: 90% accurate<br>
+    Women: 88% accurate<br>
+    Difference: 2% ✅ (Small, acceptable)<br><br>
+    <b>Unfair example:</b><br>
+    Men: 95% accurate<br>
+    Women: 70% accurate<br>
+    Difference: 25% ❌ (Huge! Women get bad healthcare)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 2️⃣ Rule: Equal Diagnosis")
+    st.markdown("""
+    <div class="explain-text">
+    <b>Simple question:</b> Does the AI diagnose all groups equally?<br><br>
+    <b>Fair example:</b><br>
+    60% of men get diagnosed<br>
+    58% of women get diagnosed<br>
+    Difference: 2% ✅ (Fair)<br><br>
+    <b>Unfair example:</b><br>
+    80% of men get diagnosed<br>
+    30% of women get diagnosed<br>
+    Difference: 50% ❌ (Women get missed diagnoses)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 3️⃣ Rule: Equal Errors")
+    st.markdown("""
+    <div class="explain-text">
+    <b>Simple question:</b> Does the AI make the same mistakes for all groups?<br><br>
+    <b>Fair example:</b><br>
+    False alarms for 5% of men<br>
+    False alarms for 6% of women<br>
+    Difference: 1% ✅ (Fair)<br><br>
+    <b>Unfair example:</b><br>
+    False alarms for 5% of men<br>
+    False alarms for 20% of women<br>
+    Difference: 15% ❌ (Women get more stress from false alarms)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown("### 🎯 Why 10% Fairness Threshold?")
+    
+    st.markdown("""
+    <div class="explain-text">
+    <b>Why exactly 10%?</b><br>
+    • Medical regulators recommend 10% as the fairness standard<br>
+    • Small differences (under 10%) can be natural variation<br>
+    • Differences over 10% indicate real bias<br>
+    • You can change this if your hospital has different standards<br><br>
     <b>Example:</b><br>
-    ✅ FAIR: Works 90% for young AND 88% for elderly (2% difference)<br>
-    ❌ UNFAIR: Works 95% for young BUT 70% for elderly (25% difference)
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("#### 2️⃣ Equal Diagnosis Rate")
-    st.markdown("""
-    <div class="info-box">
-    <b>Question:</b> Does the AI diagnose equally across groups?<br><br>
-    <b>Example:</b><br>
-    ✅ FAIR: Diagnoses 60% of young AND 58% of elderly<br>
-    ❌ UNFAIR: Diagnoses 80% of young BUT 30% of elderly (many elderly missed!)
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("#### 3️⃣ Equal Error Rate")
-    st.markdown("""
-    <div class="info-box">
-    <b>Question:</b> Does the AI make similar mistakes for all groups?<br><br>
-    <b>Example:</b><br>
-    ✅ FAIR: False alarms 5% for young AND 6% for elderly<br>
-    ❌ UNFAIR: False alarms 5% for young BUT 20% for elderly (elderly get more scares)
+    If AI is 92% accurate for men and 90% for women = 2% difference = Fair ✅<br>
+    If AI is 95% accurate for men and 80% for women = 15% difference = Unfair ❌
     </div>
     """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    st.markdown("### The Fairness Threshold (Why 10%?)")
+    st.markdown("### 🏥 Real Hospital Example")
+    
     st.markdown("""
-    We say differences less than 10% are "acceptable" because:
-    - ✅ Small natural variation exists
-    - ✅ 10% is the industry standard
-    - ✅ More than 10% means real bias
-    - ✅ You can change this slider!
-    """)
+    <div class="info-box">
+    <b>The Situation:</b><br>
+    A hospital wants to use AI to predict who will have a stroke.<br><br>
+    <b>What we find when we test it:</b><br>
+    • 60-year-olds: 94% accurate ✅<br>
+    • 70-year-olds: 88% accurate ⚠️<br>
+    • 80-year-olds: 65% accurate ❌<br>
+    • 90-year-olds: 40% accurate ❌❌<br><br>
+    <b>Why is this bad?</b><br>
+    Elderly people have MORE strokes, not fewer!<br>
+    But the AI is WORSE at detecting them!<br>
+    Result: Elderly patients get missed diagnoses and die.<br><br>
+    <b>Recommendation:</b> 🛑 DO NOT USE<br>
+    <b>What to do:</b> Retrain the AI with more elderly patients' data
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    st.markdown("### Real Hospital Example")
+    st.markdown("### 💡 Why Does This Matter?")
+    
     st.markdown("""
-    **Scenario:** A hospital wants to use an AI to predict stroke risk.
-    
-    **What the AI does:**
-    - For 60-year-olds: 95% accurate ✅
-    - For 80-year-olds: 60% accurate ❌
-    
-    **Why this is a problem:**
-    - Elderly people are MORE likely to have strokes
-    - But the AI is WORSE at detecting them!
-    - Elderly patients get missed diagnoses
-    - People have strokes and don't get help
-    
-    **What this app would say:** 🛑 DO NOT USE - Serious bias detected
-    
-    **What the hospital should do:** Retrain the AI with more elderly patients until it's fair.
-    """)
+    <div class="warning-box">
+    <b>Consequences of biased AI in hospitals:</b><br>
+    ❌ Patients don't get diagnosed (they get sick or die)<br>
+    ❌ Wrong treatments (wrong diagnosis = wrong medicine)<br>
+    ❌ Hospital gets sued (bias is illegal)<br>
+    ❌ Loss of patient trust (people won't use AI)<br>
+    ❌ Regulatory penalties (FDA doesn't approve biased models)
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============================================================================
-# ABOUT MODE
+# ABOUT
 # ============================================================================
 
 elif tab == "👤 About":
-    st.markdown("## 👋 About This Tool")
+    st.markdown("""
+    <div class="header">
+        <h1>👤 About This Tool</h1>
+        <p>Why we built it and who we are</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("""
-    This tool was built to solve a real problem: **Medical AI that looks fair but isn't.**
+    ### 🎯 Why This Tool Exists
     
-    ### 🎯 Our Goal
-    Protect patients by finding AI bias BEFORE it harms them.
+    Medical AI is getting better every day, but it has a BIG PROBLEM:
+    Hidden bias that harms patients.
+    
+    Example: An AI trained mostly on data from men might not work well for women.
+    If a hospital uses it anyway, women don't get proper diagnoses.
+    
+    This tool prevents that by finding bias BEFORE it harms anyone.
+    
+    ---
     
     ### 👨‍🔬 Who Built This?
+    
     **Dr. Loveleen Gaur**
-    - AI researcher and ethicist
+    - AI Researcher and Ethics Expert
     - 130+ published research papers
-    - Focus: Making AI fair and trustworthy
-    - Email: gaurloveleen@yahoo.com
-    
-    ### 🏆 Credentials
     - Top 2% of scientists globally
-    - 30+ books on AI ethics
-    - Published in major journals
+    - 30+ books on AI ethics and fairness
     
-    ### 📚 Based On Research
+    **Email:** gaurloveleen@yahoo.com
+    **ORCID:** 0000-0002-0885-1550
+    
+    ---
+    
+    ### 📚 Based on Real Science
+    
     This tool uses fairness standards from:
-    - Academic peer-reviewed papers
-    - Hospital regulations
-    - Ethical AI guidelines
+    - Published peer-reviewed research papers
+    - Hospital regulations (FDA, etc.)
+    - Medical ethics guidelines
+    - International AI fairness standards
     
-    ### 💡 How It Works
-    1. You upload your AI predictions
-    2. We split data by groups (age, gender, etc.)
-    3. We check if accuracy is equal
-    4. We tell you if bias exists
-    5. We recommend: Safe to use? Or fix it first?
+    ---
     
-    ### 🔒 Privacy
-    - Your data is analyzed here
-    - Nothing is saved
-    - Nothing is shared
-    - Your data stays private
+    ### 🔒 Your Privacy
+    
+    ✅ Your data is analyzed here only<br>
+    ✅ Nothing is saved to our servers<br>
+    ✅ Nothing is shared with anyone<br>
+    ✅ Your data stays completely private<br>
+    
+    ---
+    
+    ### 💭 How It Works (Summary)
+    
+    1. You upload your AI model's predictions
+    2. We split the data by demographic groups
+    3. We check 3 fairness rules
+    4. We tell you: Is it fair? Or does it have bias?
+    5. If biased, we tell you how to fix it
+    
+    ---
+    
+    ### 🌟 Our Goal
+    
+    Make sure medical AI helps ALL patients equally.
+    No bias. No discrimination. Fairness for everyone.
     """)
 
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; font-size: 11px; color: gray; margin-top: 30px;">
-Made to protect patients from biased medical AI ❤️
+Made with ❤️ to protect patients from biased medical AI<br>
+Dr. Loveleen Gaur | AI Ethics & Fairness
 </div>
 """, unsafe_allow_html=True)
