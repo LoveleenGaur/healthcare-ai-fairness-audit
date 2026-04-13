@@ -184,43 +184,101 @@ if tab == "📊 See Demo":
     st.markdown("""
     <div class="info-box">
     <b>📌 What You're About To See:</b><br>
-    A real example of medical AI that has hidden bias. 
-    On the surface it looks 70% accurate, but it actually works MUCH better 
-    for young patients (95% accurate) than elderly patients (40% accurate). 
-    This bias would harm elderly people if we used it in a hospital!
+    A realistic medical AI scenario with a diverse patient population. 
+    On the surface it looks reasonably accurate overall, but when we dig deeper 
+    by ethnicity, language, and insurance type - we find significant disparities. 
+    Some groups get diagnosed much better than others. This bias would harm 
+    vulnerable populations if we deployed it without fixing it!
     </div>
     """, unsafe_allow_html=True)
     
-    # Generate synthetic data with MULTIPLE demographics
+    # Generate synthetic data - REALISTIC DIVERSE POPULATION SCENARIO
+    # Represents diverse urban healthcare with documented disparities
     np.random.seed(42)
-    n_samples = 200
+    n_samples = 300
     
     predictions = []
+    ground_truth_list = []
     age_groups = []
-    genders = []
+    ethnicities = []
+    languages = []
+    insurance_types = []
     
+    # Realistic population distribution (70% Hispanic, 15% African American, 15% Other)
     for i in range(n_samples):
-        age = np.random.choice(['Young (45-55)', 'Middle (56-65)', 'Elderly (66+)'])
-        gender = np.random.choice(['Male', 'Female'])
-        
-        # Different accuracy for age groups
-        if age == 'Elderly (66+)':
-            pred = np.random.choice([0, 1], p=[0.65, 0.35])
-        elif age == 'Middle (56-65)':
-            pred = np.random.choice([0, 1], p=[0.55, 0.45])
+        # Demographics matching diverse urban population
+        rand = np.random.random()
+        if rand < 0.70:
+            ethnicity = 'Hispanic/Latino'
+        elif rand < 0.85:
+            ethnicity = 'African American'
         else:
-            pred = np.random.choice([0, 1], p=[0.35, 0.65])
+            ethnicity = 'White/Other'
+        
+        age = np.random.choice(['45-55 years', '56-65 years', '66+ years'], p=[0.35, 0.35, 0.30])
+        
+        # Language correlates with ethnicity (realistic)
+        if ethnicity == 'Hispanic/Latino':
+            language = np.random.choice(['Spanish', 'English/Bilingual'], p=[0.60, 0.40])
+        else:
+            language = 'English'
+        
+        # Insurance type (realistic disparities by ethnicity)
+        if ethnicity == 'Hispanic/Latino':
+            insurance = np.random.choice(['Medicaid', 'Uninsured', 'Medicare', 'Private'], p=[0.35, 0.25, 0.20, 0.20])
+        elif ethnicity == 'African American':
+            insurance = np.random.choice(['Medicaid', 'Medicare', 'Private', 'Uninsured'], p=[0.30, 0.25, 0.35, 0.10])
+        else:
+            insurance = np.random.choice(['Private', 'Medicare', 'Medicaid'], p=[0.60, 0.25, 0.15])
+        
+        # Ground truth: disease status (realistic prevalence by ethnicity)
+        if ethnicity == 'Hispanic/Latino':
+            has_disease = np.random.choice([0, 1], p=[0.60, 0.40])  # 40% prevalence
+        elif ethnicity == 'African American':
+            has_disease = np.random.choice([0, 1], p=[0.62, 0.38])  # 38% prevalence
+        else:
+            has_disease = np.random.choice([0, 1], p=[0.72, 0.28])  # 28% prevalence
+        
+        # AI PREDICTION: Realistic bias pattern
+        if language == 'English':
+            accuracy_base = 0.87  # Works well for English speakers
+        else:
+            accuracy_base = 0.62  # Struggles with Spanish speakers (language/cultural factors)
+        
+        if insurance == 'Private':
+            accuracy_mult = 1.05  # Better (more follow-up, clearer communication)
+        elif insurance == 'Uninsured':
+            accuracy_mult = 0.83  # Worse (less data, missed appointments)
+        else:
+            accuracy_mult = 0.95
+        
+        if age == '66+ years':
+            accuracy_mult *= 0.92  # Slightly worse for elderly
+        
+        effective_accuracy = accuracy_base * accuracy_mult
+        effective_accuracy = min(0.95, max(0.50, effective_accuracy))  # Bounds
+        
+        # Generate prediction
+        if np.random.random() < effective_accuracy:
+            pred = has_disease
+        else:
+            pred = 1 - has_disease
         
         predictions.append(pred)
+        ground_truth_list.append(has_disease)
         age_groups.append(age)
-        genders.append(gender)
+        ethnicities.append(ethnicity)
+        languages.append(language)
+        insurance_types.append(insurance)
     
     predictions = np.array(predictions)
-    ground_truth = np.random.choice([0, 1], n_samples, p=[0.3, 0.7])
+    ground_truth = np.array(ground_truth_list)
     
     demographics = pd.DataFrame({
         'age_group': age_groups,
-        'gender': genders
+        'ethnicity': ethnicities,
+        'primary_language': languages,
+        'insurance_type': insurance_types
     })
     
     # Overview
